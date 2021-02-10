@@ -2,14 +2,19 @@
 title: "Untitled"
 author: "Jonas Coelho"
 date: "09/02/2021"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r include=FALSE}
 library('dplyr')
 library('kableExtra')
 ```
@@ -61,18 +66,16 @@ jan_compilado <- compilado %>%
   filter(me_exercicio == '1')
 ```
 
-Enquanto há `r nrows(jan_compilado)` linhas no arquivo compilado para janeiro, no arquivo de consulta há `r nrows(jan_consulta)` linhas. Ou seja, aparentemente não há nenhuma entrada faltante.
+Enquanto há `r nrow(jan_compilado)` linhas no arquivo compilado para janeiro, no arquivo de consulta há `r nrow(jan_consulta)` linhas. Ou seja, aparentemente não há nenhuma entrada faltante.
 
 Quanto as colunas, nós iremos precisar identificar os profissionais, a escola onde atuam, a profissão (para distinguir magistério dos demais), a qualificação, o valor total pago no mês e a carga horária.
 É possível notar que todas essas informações estão presentes nos dois arquivos:
 
 ```{r}
-print("Compilado: ")
 colnames(jan_compilado) %>%
   kable(align="l") %>%
   kable_styling(bootstrap_options = c("striped", "hover"), position = "center") 
 
-print("Consulta: ")
 colnames(jan_consulta) %>%
   as.data.frame() %>%
   kable(align="l") %>%
@@ -134,7 +137,8 @@ Como há um NA, é necessário visualizar para entender o que pode ter ocorrido.
 sp_2019 %>%
   filter(is.na(mes)) %>%
   kable(align="l") %>%
-  kable_styling(bootstrap_options = c("striped", "hover"), position = "center") 
+  kable_styling(bootstrap_options = c("striped", "hover"), position = "center") %>%
+  scroll_box(width = "90%", height = "400px") 
 ```
 
 Se refere a uma linha com o valor total presente em cada arquivo. Por ser desnecessária, vamos removê-la.
@@ -144,4 +148,10 @@ sp_2019 <- sp_2019 %>%
   filter(!is.na(mes))
 ```
 
+Por fim vamos verificar os profissionais presentes
+
+
 ## 3. Análise exploratória
+
+Primeiramente, vamos visualizar como está a distribuição dos valores pagos.
+
