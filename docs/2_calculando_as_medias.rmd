@@ -1,0 +1,139 @@
+---
+title: "2. Calculando as médias"
+author: "Jonas Coelho"
+date: "09/02/2021"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+theme_tb <- function (base_size = 12, base_family = "calibri",
+                      legend.position="bottom", legend_size= 10) {
+  
+  theme_grey(base_size = base_size, base_family = base_family) %+replace% 
+  theme(
+    
+    legend.position = legend.position , 
+    legend.margin=unit(-.2,"cm"),
+    legend.text=element_text(size=legend_size),
+    legend.title = element_blank(), # size=.5
+    
+    axis.text = element_text(size = rel(0.8)),
+    axis.ticks = element_line(colour = "black"), 
+    
+    legend.key = element_rect(colour = "grey80"), 
+    legend.key.size = unit(.3, "cm"),
+    
+    panel.background = element_rect(fill = "white", colour = NA),
+    panel.border = element_rect(fill = NA,  colour = "grey50"), 
+    panel.grid.major = element_line(colour = "white", size = 0.2),
+    panel.grid.minor = element_line(colour = "white",  size = 0.5), 
+    
+    strip.background = element_rect(fill = "grey80", colour = "grey50", size = 0.2)
+    
+  )
+  
+}
+
+trace(grDevices::png, quote({
+  if (missing(type) && missing(antialias)) {
+    type <- "cairo-png"
+    antialias <- "subpixel"
+  }
+}), print = FALSE)
+```
+
+```{r include=FALSE}
+library('dplyr')
+library('kableExtra')
+library('ggplot2')
+library(hrbrthemes)
+library(viridis)
+```
+
+## I. Horas
+
+O objetivo desse arquivo é identificar a melhor forma de obter a média salarial dos professores. Antes de mais nada, é necessário resgatar o dataframe gerado no arquivo anterior.
+
+```{r}
+load('../dados/sp_2019.RData')
+```
+
+Idealmente, precisaríamos verificar se funcionários podem estar lotados em mais de uma escola. Entretanto, como não há outro identificador além do nome, isso não é possível. Por esse motivo, vamos trabalhar com a premissa de que cada funcionário lotado em uma entidade é uma pessoa distinta.
+
+De forma a ter uma comparação adequada, será calculado o valor da hora de cada funcionário. Antes, iremos verificar a distribuição da carga horária de cada funcionário.
+
+```{r}
+sp_2019 %>%
+  group_by(carga_horaria) %>%
+  summarise(contagem = n())
+```
+É possível notar que apenas uma pequena parcela possui 40h de carga horária, com a maioria trabalhando 30h. Para ter certeza que o número de horas trabalhadas não afeta significativamente o valor pago, vamos fazer uma comparação visual. Para isso será necessário criar a coluna de valor da hora.
+
+```{r}
+sp_2019 <- sp_2019 %>%
+  mutate(total_pago = gsub("\\.","", total_a_b_c)) %>%
+  mutate(total_pago = gsub(",","\\.", total_pago)) %>%
+  mutate(total_pago = as.numeric(total_pago)) %>%
+  mutate(valor_hora = total_pago/carga_horaria)
+```
+
+Agora a identificação visual:
+
+```{r}
+sp_2019 %>%
+ggplot(aes(x=carga_horaria, y=valor_hora, fill=as.factor(carga_horaria))) + 
+  geom_violin()
+```
+A identificação visual não traz muitas respostas por conta de valores outliers presentes na base. Não parece razoável que uma pessoa tenha, sozinha, conseguido R$ 15.000 a hora. Por isso, vamos explorar esses dados:
+
+```{r}
+sp_2019 %>%
+  filter(valor_hora > 15000) %>%
+  kable(align="l") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), position = "center") %>%
+  scroll_box(width = "90%", height = "400px") 
+```
+Tomando como base a "EMILIA MARIA GARCIA DOS SANTOS" que supostamente recebeu R% 502 mil em junho de 2019, vamos verificar se esse valor bate com o descrito nos dados abertos pela prefeitura de SP. Segundo os dados fornecidos no portal municipal ( http://dados.prefeitura.sp.gov.br/dataset/remuneracao-servidores-prefeitura-de-sao-paulo ), de fato houve essa remuneração naquele mês.
+
+Ao contrário dos anos anteriores para outros municípios, não parece haver entradas incorretas, como por exemplo funcionários consolidando todos os salários de uma unidade educacional. Ainda assim, há valores atípicos.
+
+Uma forma de contornar esse problema é verificar a frequência desses valores para, então, eliminá-los. No caso da Emilia, por exemplo:
+
+```{r}
+sp_2019 %>%
+  filter(nome == "EMILIA MARIA GARCIA DOS SANTOS") %>%
+  kable(align="l") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), position = "center") %>%
+  scroll_box(width = "90%", height = "400px") 
+```
+
+Os valores atípicos apareceram apenas em dois meses. Vamos então criar uma estimativa temporária de limite de remuneração e desconsiderar tudo que for pago acima disso para evitar que esses outliers influenciem as médias salariais das escolas.
+
+O cálculo temporário feito será o seguinte:
+
+```{r}
+sp_2019_2 <- sp_2019 %>%
+  group_by(nome,codigo_do_local_de_exercicio) %>%
+  mutate(mediana = median(valor_hora), mad = mad(valor_hora), meses = n()) %>%
+  ungroup %>%
+  mutate(upper_bound = mediana + 8*mad) %>%
+  mutate(valor_certo = ifelse(valor_hora > upper_bound, upper_bound, valor_hora))
+```
+
+
+Vamos ver como fica a distribuição visual agora. Vamos filtrar apenas aqueles professores que possuem mais de 5 meses registrados, visto que isso poderia atrapalhar o cálculo da mediana:
+
+```{r}
+sp_2019_2 %>%
+  filter(meses > 5) %>%
+ggplot(aes(x=carga_horaria, y=valor_certo, fill=as.factor(carga_horaria))) + 
+  geom_violin()
+```
+

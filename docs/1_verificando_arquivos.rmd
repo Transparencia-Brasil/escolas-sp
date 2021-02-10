@@ -1,0 +1,164 @@
+---
+title: "1. Verificando arquivos"
+author: "Jonas Coelho"
+date: "09/02/2021"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library('dplyr')
+library('kableExtra')
+```
+
+
+## Introdução
+O objetivo dessa análise é obter os salários médios pagos nas escolas públicas paulistanas. Esses dados serão combinados com informações de raça dos alunos e vulnerabilidade social para identificar possíveis correlações entre essas variáveis. Serão utilizadas informações do FNDE (SIOPE) e INEP.
+
+## I. Comparando os arquivos
+
+O FNDE disponibiliza diversos arquivos e consultas sobre remuneração dos funcionários das escolas públicas. No endereço https://www.fnde.gov.br/index.php/fnde_sistemas/siope/relatorios/arquivos-dados-analiticos é possível encontrar dados consolidados para todos os estados e Distrito Federal, notadamente a remuneração dos magistérios. É possível também consultar essa informação em https://www.fnde.gov.br/siope/consultarRemuneracaoMunicipal.do
+
+Em fevereiro de 2021, o município de São Paulo ainda não havia enviado os dados de remuneração para novembro e dezembro de 2020, por esse motivo, a análise será realizada apenas com as informações disponíveis para 2019. Para confirmar que os dados disponibilizados no endereço de consulta e no endereço de arquivos compilados são os mesmos, serão importados ambos para comparação.
+
+O arquivo compilado possui dados para todos os municípios de São Paulo, tornando-o excessivamente pesado. Para reduzir o volume de informação, é possível utilizar o shell do linux na pasta de dados com o comando:
+
+```{bash eval=FALSE}
+bash awk -F ";" '{if ($6 == 355030 || NR == 1) {print}}' REMUNERACAO_PROFISSIONAIS_EDUCACAO_SP_2019.CSV > 2019_sp_mun.csv
+```
+
+O código 355030 identifica o munícipio de São Paulo e pode ser alterado para manter qualquer outro código do IBGE desejado.
+
+Agora vamos à comparação. O arquivo de janeiro de 2019 da página de consulta foi baixado na pasta de dados e será carregado. 
+
+```{r}
+jan_consulta <- readxl::read_xlsx('../dados/planilhas/Planilha.xlsx') %>%
+  janitor::clean_names()
+
+compilado <- data.table::fread('../dados/2019_sp_mun.csv') %>%
+  janitor::clean_names()
+
+```
+
+Primeiramente, vale consultar se todos os meses de 2019 estão disponíveis no arquivo compilado.
+
+```{r}
+compilado %>%
+  distinct(me_exercicio)
+
+compilado %>%
+  distinct(nu_periodo)
+
+```
+
+É possível notar que só há 10 valores distintos para a variável "me_exercício", indicando que o arquivo compilado está incompleto. Por esse motivo, vamos dar prioridade ao arquivo gerado a partir do endereço de consulta. Antes, vamos só verificar se há alguma entrada faltando.
+
+```{r}
+jan_compilado <- compilado %>%
+  filter(me_exercicio == '1')
+```
+
+Enquanto há `r nrow(jan_compilado)` linhas no arquivo compilado para janeiro, no arquivo de consulta há `r nrow(jan_consulta)` linhas. Ou seja, aparentemente não há nenhuma entrada faltante.
+
+Quanto as colunas, nós iremos precisar identificar os profissionais, a escola onde atuam, a profissão (para distinguir magistério dos demais), a qualificação, o valor total pago no mês e a carga horária.
+É possível notar que todas essas informações estão presentes nos dois arquivos:
+
+```{r}
+colnames(jan_compilado) %>%
+  kable(align="l") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), position = "center") 
+
+colnames(jan_consulta) %>%
+  as.data.frame() %>%
+  kable(align="l") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), position = "center") 
+```
+
+É possível notar que o arquivo compilado possui uma coluna "nu_remuneracao", que pode indicar uma possível matrícula. Por isso vamos ver quantas duplicatas há dessa variável.
+
+```{r}
+compilado %>%
+  distinct(nu_remuneracao) %>%
+  nrow()
+```
+
+Como o número é o mesmo de observações, essa coluna é apenas um indicador do pagamento, não sendo muito útil para a análise atual. Fica determinado, então, que os arquivos de consulta são o melhor caminho. Cumpre observar também que os arquivos de consulta possuem uma coluna com ID única para onde o funcionário atua, ao contrário do compilado, que só possui o nome do local. Essa vantagem será útil conforme não há identificador dos funcionários como CPF ou matrícula.
+
+## II. Gerando o arquivo final
+
+Como o site de consulta do SIOPE é limitado, é necessário baixar os valores mês a mês e depois compilar tudo em um data frame com todas as informações para 2019.
+Para isso, usaremos o seguinte código:
+
+```{r}
+compilar <- function(){
+
+  lista <- list.files('../dados/planilhas') 
+
+  for (i in 1:12) {
+    j <- lista[i]
+    arq <- paste0("../dados/planilhas/", j)
+    
+    mes <-
+      readxl::read_xlsx(arq) %>%
+      janitor::clean_names()
+
+    assign(paste0("mes_", i), mes)
+    
+    if (i == 1) {
+      sp_2019 <- mes
+    } else {
+      sp_2019 <- rbind(sp_2019, mes)
+    }
+  }
+  sp_2019 <<- sp_2019
+}
+
+compilar()
+```
+
+Vamos verificar se todos os meses foram obtidos corretamente
+
+```{r}
+sp_2019 %>%
+  distinct(mes)
+```
+
+Como há um NA, é necessário visualizar para entender o que pode ter ocorrido.
+
+```{r}
+sp_2019 %>%
+  filter(is.na(mes)) %>%
+  kable(align="l") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), position = "center") %>%
+  scroll_box(width = "90%", height = "400px") 
+```
+
+Se refere a uma linha com o valor total presente em cada arquivo. Por ser desnecessária, vamos removê-la.
+
+```{r}
+sp_2019 <- sp_2019 %>%
+  filter(!is.na(mes))
+```
+
+Por fim vamos verificar os profissionais presentes
+
+```{r}
+sp_2019 %>%
+  distinct(tipo_categoria)
+```
+
+Como só há profissionais do magistério, não é necessário nenhum filtro adicional.
+
+Com isso, vamos exportar o dataframe e partir para a próxima etapa de explorar os dados e verificar a melhor forma de cálculo.
+
+```{r}
+save(sp_2019, file="../dados/sp_2019.RData")
+```
