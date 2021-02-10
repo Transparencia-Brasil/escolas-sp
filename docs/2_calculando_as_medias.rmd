@@ -156,6 +156,11 @@ escolas <- sp_2019 %>%
   summarise(media_hora_anual = mean(media_hora), media_15 = sum(soma_15), media_23 = sum(soma_23), media_30 = sum(soma_30), media_40 = sum(soma_40))
 ```
 
+Salvando:
+
+```{r}
+save(escolas, file="../dados/escolas.RData")
+```
 
 
 ## Apêndice
@@ -202,3 +207,5 @@ sp_2019 %>%
   nrow()
 ```
 
+
+- Fazer comparação com media depois trocar por mediana
