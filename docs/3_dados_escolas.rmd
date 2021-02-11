@@ -1,0 +1,76 @@
+---
+title: "3. Dados escolas"
+author: "Jonas Coelho"
+date: "09/02/2021"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+theme_tb <- function (base_size = 12, base_family = "calibri",
+                      legend.position="bottom", legend_size= 10) {
+  
+  theme_grey(base_size = base_size, base_family = base_family) %+replace% 
+  theme(
+    
+    legend.position = legend.position , 
+    legend.margin=unit(-.2,"cm"),
+    legend.text=element_text(size=legend_size),
+    legend.title = element_blank(), # size=.5
+    
+    axis.text = element_text(size = rel(0.8)),
+    axis.ticks = element_line(colour = "black"), 
+    
+    legend.key = element_rect(colour = "grey80"), 
+    legend.key.size = unit(.3, "cm"),
+    
+    panel.background = element_rect(fill = "white", colour = NA),
+    panel.border = element_rect(fill = NA,  colour = "grey50"), 
+    panel.grid.major = element_line(colour = "white", size = 0.2),
+    panel.grid.minor = element_line(colour = "white",  size = 0.5), 
+    
+    strip.background = element_rect(fill = "grey80", colour = "grey50", size = 0.2)
+    
+  )
+  
+}
+
+trace(grDevices::png, quote({
+  if (missing(type) && missing(antialias)) {
+    type <- "cairo-png"
+    antialias <- "subpixel"
+  }
+}), print = FALSE)
+```
+
+```{r include=FALSE}
+library('dplyr')
+library('kableExtra')
+library('ggplot2')
+library(hrbrthemes)
+library(viridis)
+```
+
+## I. Horas
+
+O objetivo desse arquivo é identificar a melhor forma de obter a média salarial dos professores. Antes de mais nada, é necessário resgatar o dataframe gerado no arquivo anterior.
+
+```{r}
+load('../dados/escolas.RData')
+```
+
+```{r}
+library(raster)
+library(rgdal)
+library(sp)
+pols <- shapefile(system.file("D:/Users/jonas/Local/Documentos/Dados/Codigos e projetos/escolas-sp/dados/setores.shp", package="raster")) 
+set.seed(20180121) 
+pts <- data.frame(coordinates(spsample(pols, 5, 'random')), name=letters[1:5])
+plot(pols); points(pts)
+```
