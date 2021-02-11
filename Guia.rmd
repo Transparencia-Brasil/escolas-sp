@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "1. Verificando arquivos"
 author: "Jonas Coelho"
 date: "09/02/2021"
 output: 
@@ -23,7 +23,7 @@ library('kableExtra')
 ## Introdução
 O objetivo dessa análise é obter os salários médios pagos nas escolas públicas paulistanas. Esses dados serão combinados com informações de raça dos alunos e vulnerabilidade social para identificar possíveis correlações entre essas variáveis. Serão utilizadas informações do FNDE (SIOPE) e INEP.
 
-## 1. Verificando os arquivos
+## I. Comparando os arquivos
 
 O FNDE disponibiliza diversos arquivos e consultas sobre remuneração dos funcionários das escolas públicas. No endereço https://www.fnde.gov.br/index.php/fnde_sistemas/siope/relatorios/arquivos-dados-analiticos é possível encontrar dados consolidados para todos os estados e Distrito Federal, notadamente a remuneração dos magistérios. É possível também consultar essa informação em https://www.fnde.gov.br/siope/consultarRemuneracaoMunicipal.do
 
@@ -35,7 +35,7 @@ O arquivo compilado possui dados para todos os municípios de São Paulo, tornan
 bash awk -F ";" '{if ($6 == 355030 || NR == 1) {print}}' REMUNERACAO_PROFISSIONAIS_EDUCACAO_SP_2019.CSV > 2019_sp_mun.csv
 ```
 
-O código 355030 identifica o munícipio de São Paulo e pode ser alterado para manter qualquer outro arquivo desejado.
+O código 355030 identifica o munícipio de São Paulo e pode ser alterado para manter qualquer outro código do IBGE desejado.
 
 Agora vamos à comparação. O arquivo de janeiro de 2019 da página de consulta foi baixado na pasta de dados e será carregado. 
 
@@ -92,7 +92,7 @@ compilado %>%
 
 Como o número é o mesmo de observações, essa coluna é apenas um indicador do pagamento, não sendo muito útil para a análise atual. Fica determinado, então, que os arquivos de consulta são o melhor caminho. Cumpre observar também que os arquivos de consulta possuem uma coluna com ID única para onde o funcionário atua, ao contrário do compilado, que só possui o nome do local. Essa vantagem será útil conforme não há identificador dos funcionários como CPF ou matrícula.
 
-## 2. Gerando o arquivo final
+## II. Gerando o arquivo final
 
 Como o site de consulta do SIOPE é limitado, é necessário baixar os valores mês a mês e depois compilar tudo em um data frame com todas as informações para 2019.
 Para isso, usaremos o seguinte código:
@@ -150,8 +150,15 @@ sp_2019 <- sp_2019 %>%
 
 Por fim vamos verificar os profissionais presentes
 
+```{r}
+sp_2019 %>%
+  distinct(tipo_categoria)
+```
 
-## 3. Análise exploratória
+Como só há profissionais do magistério, não é necessário nenhum filtro adicional.
 
-Primeiramente, vamos visualizar como está a distribuição dos valores pagos.
+Com isso, vamos exportar o dataframe e partir para a próxima etapa de explorar os dados e verificar a melhor forma de cálculo.
 
+```{r}
+save(sp_2019, file="dados/sp_2019.RData")
+```

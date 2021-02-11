@@ -57,20 +57,169 @@ library(hrbrthemes)
 library(viridis)
 ```
 
-## I. Horas
+## I. Código INEP
 
-O objetivo desse arquivo é identificar a melhor forma de obter a média salarial dos professores. Antes de mais nada, é necessário resgatar o dataframe gerado no arquivo anterior.
+Primeiramente, vamos carregar os dados produzidos anteriormente por escola.
 
 ```{r}
 load('../dados/escolas.RData')
 ```
 
+Para cruzar essas informações com outros valores (como por exemplo localização, proporção de alunos PPI e IPVS), será necessário obter o código INEP de cada escola. Em teoria, segundo o manual do SIOPE, esse dado deveria estar disponível na coluna de 'código do local do exercício'. Ocorre que, por algum motivo desconhecido, os valores ali presentes não são os mesmos da base do INEP. Por esse motivo, vamos ter que fazer um join da base de escolas com o arquivo 'Local de Exercicio - Escolas.CSV', obtido diretamente da página do FNDE (https://www.fnde.gov.br/index.php/fnde_sistemas/siope/relatorios/arquivos-dados-analiticos). Caso o link saia do ar eventualmente, é possível encontrar essa informação no Achados e Pedidos (https://www.achadosepedidos.org.br/pedidos/codigo-da-escola-no-censo-escolar-para-os-dados-do-siope).
+
+Esse arquivo não contém o cruzamento do código misterioso com o código do INEP, mas o nome registrado das escolas parece ser o mesmo obtido nos arquivos do SIOPE, então um cruzamento por nome deveria possibilitar obter essa informação. Vamos primeiro abrir o arquivo:
+
 ```{r}
-library(raster)
-library(rgdal)
-library(sp)
-pols <- shapefile(system.file("D:/Users/jonas/Local/Documentos/Dados/Codigos e projetos/escolas-sp/dados/setores.shp", package="raster")) 
-set.seed(20180121) 
-pts <- data.frame(coordinates(spsample(pols, 5, 'random')), name=letters[1:5])
-plot(pols); points(pts)
+cod_inep <- data.table::fread('../dados/Local de Exercicio - Escolas.CSV', quote = "\'") %>%
+  janitor::clean_names()
+```
+
+Agora verificar se há escolas homônimas:
+
+```{r}
+escolas %>%
+  distinct(local_de_exercicio) %>%
+  nrow()
+```
+O número bate com o número de observações, então podemos prosseguir:
+
+```{r}
+# Filtrando pelas escolas paulistanas
+cod_inep <- cod_inep %>%
+  filter(cod_muni == 355030) %>%
+  select(cod_escola, nom_escola) %>%
+  mutate(nom_escola = gsub("\\'","", nom_escola))
+
+
+escolas_com_cod <- escolas %>%
+  left_join(cod_inep, by = c('local_de_exercicio' = 'nom_escola'))
+```
+
+Agora vamos verificar se alguma escola ficou de fora:
+
+```{r}
+escolas_com_cod %>%
+  filter(is.na(cod_escola)) %>%
+  nrow()
+```
+Temos 11 escolas. Olhando as duas bases, é possível notar que nem sempre os nomes batem. Ainda assim, por ser um número desprezível perto do total analisado, vamos prosseguir sem essas unidades.
+
+## II. Dados de localização
+
+A prefeitura de São Paulo disponibiliza um completo arquivo com dados de endereço e localização de todas as escolas (http://dados.prefeitura.sp.gov.br/dataset/cadastro-de-escolas-municipais-conveniadas-e-privadas). Enquanto isso limita o método utilizado aqui para expansão em outras cidades, torna a análise presente mais completa, motivo pelo qual será adotado.
+
+Abrindo o arquivo:
+
+```{r}
+localiz <- read.csv2('../dados/escolas122019.csv') %>%
+  mutate(cod_escola = as.numeric(codinep))
+```
+
+É possível notar que a coluna do código INEP está exportada incorretamente com ".0" no final de cada um, por isso o mutate na importação.
+
+Nós queremos apenas 5 informações: código, latitude, longitude, distrito e o código do distrito:
+
+```{r}
+localiz <- localiz %>%
+  select(cod_escola, latitude, longitude, distrito, coddist)
+```
+
+Agora o join:
+
+```{r}
+escolas_com_cod <- escolas_com_cod %>%
+  left_join(localiz)
+```
+## III. IPVS
+
+Agora que temos o distrito, vamos obter o IPVS. O arquivo pode ser obtido em http://ipvs.seade.gov.br/view/index.php
+
+```{r}
+ipvs <- data.table::fread("../dados/BaseIPVS2010.csv") %>%
+  filter(v1 == 3550308)
+
+```
+
+Os valores estão por setor censitário, por isso vamos criar uma coluna com o IPVS médio de cada distrito:
+
+```{r}
+ipvs <- ipvs %>%
+  group_by(v61) %>%
+  summarise(media = mean(v10)) 
+```
+
+Vamos extrair o código dos distritos agora:
+
+```{r}
+ipvs <- ipvs %>%
+  mutate(v61 = as.character(v61)) %>%
+  mutate(coddist = as.numeric(substr(v61, 8, 9))) %>%
+  select(-v61)
+```
+
+E dar join:
+
+```{r}
+escolas_com_cod <- escolas_com_cod %>%
+  left_join(ipvs)
+```
+
+## IV. Dados estudantes
+
+Por fim, vamos incluir os dados dos estudantes. Para isso, será necessário baixar os microdados do censo escolar do INEP e filtrar o arquivo pelos dados paulistanos antes de importar. Assim como feito no arquivo 1, isso pode ser feito no shell do linux com código:
+
+```{bash eval=FALSE}
+awk -F "|" '{if ($87 == 3550308 || NR == 1) {print}}' MATRICULA_SUDESTE.CSV > matriculas_capital.csv
+```
+
+Agora vamos fazer a proporção dos alunos:
+
+```{r}
+matri_sp <- readr::read_delim("../dados/matriculas_capital.csv", delim="|") %>%
+  janitor::clean_names()
+```
+
+A coluna "tp_cor_raca" possui a seguinte distinção:
+
+|Código|Significado|
+|--|--|
+0|Não declarada
+1|Branca
+2|Preta
+3|Parda
+4|Amarela
+5|Indígena
+
+Agora vamos criar a tabela com os valores totais. Observe que vamos excluir aquelas escolas com menos de 40 matrículas:
+```{r}
+racas <- matri_sp %>%
+  janitor::tabyl(co_entidade, tp_cor_raca)
+
+oldnames = c("0","1","2","3","4","5")
+newnames = c("nd","bra","pre","par","ama","ind")
+
+racas <- racas %>% rename_at(vars(oldnames), ~ newnames)
+
+racas <- racas %>%
+  mutate(total = nd+bra+pre+par+ama+ind) %>%
+  mutate(nao_bra_prop = (1-(bra/total))*100) %>%
+  mutate(nao_bra_prop_declarados = (1-(bra/(bra+pre+par+ama+ind)))*100) %>%
+  filter(total>40)
+
+```
+
+Por fim, vamos gerar a tabela final:
+
+```{r}
+escolas_com_cod <- escolas_com_cod %>%
+  left_join(racas, by = c('cod_escola' = 'co_entidade')) %>%
+  unique() %>%
+  filter(!is.na(cod_escola))
+```
+
+Concluído isso, vamos salvar o arquivo para usos futuros:
+
+```{r}
+write.csv(escolas_com_cod, "../dados/escolas_com_dados.csv")
+save(escolas_com_cod, file="escolas_com_dados.RData")
 ```
