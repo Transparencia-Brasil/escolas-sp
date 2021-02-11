@@ -221,5 +221,5 @@ Concluído isso, vamos salvar o arquivo para usos futuros:
 
 ```{r}
 write.csv(escolas_com_cod, "../dados/escolas_com_dados.csv")
-save(escolas_com_cod, file="escolas_com_dados.RData")
+save(escolas_com_cod, file="../dados/escolas_com_dados.RData")
 ```
