@@ -72,7 +72,8 @@ De forma a ter uma comparação adequada, será calculado o valor da hora de cad
 ```{r}
 sp_2019 %>%
   group_by(carga_horaria) %>%
-  summarise(contagem = n())
+  summarise(contagem = n()) %>%
+  mutate(perc = contagem/sum(contagem))
 ```
 É possível notar que apenas uma pequena parcela possui 40h de carga horária, com a maioria trabalhando 30h. Para ter certeza que o número de horas trabalhadas não afeta significativamente o valor pago, vamos fazer uma comparação visual. Para isso será necessário criar a coluna de valor da hora.
 

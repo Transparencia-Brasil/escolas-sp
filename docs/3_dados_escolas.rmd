@@ -215,8 +215,8 @@ racas <- racas %>% rename_at(vars(oldnames), ~ newnames)
 
 racas <- racas %>%
   mutate(total = nd+bra+pre+par+ama+ind) %>%
-  mutate(nao_bra_prop = (1-(bra/total))*100) %>%
-  mutate(nao_bra_prop_declarados = (1-(bra/(bra+pre+par+ama+ind)))*100) %>%
+  mutate(ppi_prop = (1-((bra+ama)/total))*100) %>%
+  mutate(ppi_prop_declarados = (1-((bra+ama)/(bra+pre+par+ama+ind)))*100) %>%
   filter(total>40)
 
 ```

@@ -296,10 +296,11 @@ div.tocify {
 <p>De forma a ter uma comparação adequada, será calculado o valor da hora de cada funcionário. Antes, iremos verificar a distribuição da carga horária de cada funcionário.</p>
 <pre class="r"><code>sp_2019 %&gt;%
   group_by(carga_horaria) %&gt;%
-  summarise(contagem = n())</code></pre>
+  summarise(contagem = n()) %&gt;%
+  mutate(perc = contagem/sum(contagem))</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
-{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["carga_horaria"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["contagem"],"name":[2],"type":["int"],"align":["right"]}],"data":[{"1":"15","2":"2383","_rn_":"1"},{"1":"23","2":"190693","_rn_":"2"},{"1":"30","2":"416127","_rn_":"3"},{"1":"40","2":"61443","_rn_":"4"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["carga_horaria"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["contagem"],"name":[2],"type":["int"],"align":["right"]},{"label":["perc"],"name":[3],"type":["dbl"],"align":["right"]}],"data":[{"1":"15","2":"2383","3":"0.00355329","_rn_":"1"},{"1":"23","2":"190693","3":"0.28434226","_rn_":"2"},{"1":"30","2":"416127","3":"0.62048681","_rn_":"3"},{"1":"40","2":"61443","3":"0.09161763","_rn_":"4"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
 <p>É possível notar que apenas uma pequena parcela possui 40h de carga horária, com a maioria trabalhando 30h. Para ter certeza que o número de horas trabalhadas não afeta significativamente o valor pago, vamos fazer uma comparação visual. Para isso será necessário criar a coluna de valor da hora.</p>
