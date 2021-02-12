@@ -336,7 +336,7 @@ escolas_com_cod &lt;- escolas %&gt;%
   mutate(latitude = gsub(&quot;(\\.)&quot;, &quot;&quot;, latitude)) %&gt;%
   mutate(latitude = paste0(stringr::str_sub(latitude, 1, 3),&quot;.&quot;, stringr::str_sub(latitude, 4, -1))) %&gt;%
   mutate(longitude = gsub(&quot;(\\.)&quot;, &quot;&quot;, longitude)) %&gt;%
-  mutate(longitue = paste0(stringr::str_sub(longitude, 1, 3),&quot;.&quot;, stringr::str_sub(longitude, 4, -1)))</code></pre>
+  mutate(longitude = paste0(stringr::str_sub(longitude, 1, 3),&quot;.&quot;, stringr::str_sub(longitude, 4, -1)))</code></pre>
 <p>Agora o join:</p>
 <pre class="r"><code>escolas_com_cod &lt;- escolas_com_cod %&gt;%
   left_join(localiz)</code></pre>

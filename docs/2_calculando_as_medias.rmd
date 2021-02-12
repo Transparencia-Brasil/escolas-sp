@@ -81,7 +81,7 @@ sp_2019 <- sp_2019 %>%
   mutate(total_pago = gsub("\\.","", total_a_b_c)) %>%
   mutate(total_pago = gsub(",","\\.", total_pago)) %>%
   mutate(total_pago = as.numeric(total_pago)) %>%
-  mutate(valor_hora = total_pago/carga_horaria)
+  mutate(valor_hora = total_pago/(carga_horaria*4))
 ```
 
 Agora a identificação visual:
@@ -91,16 +91,16 @@ sp_2019 %>%
 ggplot(aes(x=carga_horaria, y=valor_hora, fill=as.factor(carga_horaria))) + 
   geom_violin()
 ```
-A identificação visual não traz muitas respostas por conta de valores outliers presentes na base. Não parece razoável que uma pessoa tenha, sozinha, conseguido R$ 15.000 a hora. Por isso, vamos explorar esses dados:
+A identificação visual não traz muitas respostas por conta de valores outliers presentes na base. Não parece razoável que uma pessoa tenha, sozinha, conseguido R$ 3.750 a hora. Por isso, vamos explorar esses dados:
 
 ```{r}
 sp_2019 %>%
-  filter(valor_hora > 15000) %>%
+  filter(valor_hora > 3750) %>%
   kable(align="l") %>%
   kable_styling(bootstrap_options = c("striped", "hover"), position = "center") %>%
   scroll_box(width = "90%", height = "400px") 
 ```
-Tomando como base a "EMILIA MARIA GARCIA DOS SANTOS" que supostamente recebeu R% 502 mil em junho de 2019, vamos verificar se esse valor bate com o descrito nos dados abertos pela prefeitura de SP. Segundo os dados fornecidos no portal municipal ( http://dados.prefeitura.sp.gov.br/dataset/remuneracao-servidores-prefeitura-de-sao-paulo ), de fato houve essa remuneração naquele mês.
+Tomando como base a "EMILIA MARIA GARCIA DOS SANTOS" que supostamente recebeu R$ 502 mil em junho de 2019, vamos verificar se esse valor bate com o descrito nos dados abertos pela prefeitura de SP. Segundo os dados fornecidos no portal municipal ( http://dados.prefeitura.sp.gov.br/dataset/remuneracao-servidores-prefeitura-de-sao-paulo ), de fato houve essa remuneração naquele mês.
 
 Ao contrário dos anos anteriores para outros municípios, não parece haver entradas incorretas, como por exemplo funcionários consolidando todos os salários de uma unidade educacional. Ainda assim, há valores atípicos.
 
@@ -109,7 +109,7 @@ Para facilitar, vamos desconsiderar todos os valores acima de 33 mil reais mensa
 
 ```{r}
 sp_2019 <- sp_2019 %>%
-  mutate(valor_ajustado = ifelse(total_pago > 33000, 33000/carga_horaria, valor_hora))
+  mutate(valor_ajustado = ifelse(total_pago > 33000, 33000/(carga_horaria*4), valor_hora))
 ```
 
 Vendo agora como fica a distribuição:
@@ -119,6 +119,7 @@ sp_2019 %>%
 ggplot(aes(x=carga_horaria, y=valor_ajustado, fill=as.factor(carga_horaria))) + 
   geom_violin()
 ```
+
 A tabela abaixo apresenta a mediana e media por grupo:
 
 ```{r}
@@ -154,7 +155,7 @@ escolas <- sp_2019 %>%
   mutate(mediana_hora = median(valor_hora)) %>%
   ungroup() %>%
   group_by(codigo_do_local_de_exercicio, local_de_exercicio) %>%
-  summarise(media_hora_anual = mean(media_hora), media_15 = mean(soma_15), media_23 = mean(soma_23), media_30 = mean(soma_30), media_40 = mean(soma_40))
+  summarise(mediana_hora_anual = median(mediana_hora), media_hora_anual = mean(media_hora), media_15 = mean(soma_15), media_23 = mean(soma_23), media_30 = mean(soma_30), media_40 = mean(soma_40))
 ```
 
 ## III. Categoria profissional
