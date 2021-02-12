@@ -124,12 +124,25 @@ localiz <- localiz %>%
   select(cod_escola, latitude, longitude, distrito, coddist)
 ```
 
+
+O arquivo exportado pela prefeitura possui erros na pontuação das coordenadas, por isso vamos corrigir:
+
+```{r}
+localiz <- localiz %>%
+  mutate(latitude = gsub("(\\.)", "", latitude)) %>%
+  mutate(latitude = paste0(stringr::str_sub(latitude, 1, 3),".", stringr::str_sub(latitude, 4, -1))) %>%
+  mutate(longitude = gsub("(\\.)", "", longitude)) %>%
+  mutate(longitue = paste0(stringr::str_sub(longitude, 1, 3),".", stringr::str_sub(longitude, 4, -1)))
+```
+
 Agora o join:
 
 ```{r}
 escolas_com_cod <- escolas_com_cod %>%
   left_join(localiz)
 ```
+
+
 ## III. IPVS
 
 Agora que temos o distrito, vamos obter o IPVS. O arquivo pode ser obtido em http://ipvs.seade.gov.br/view/index.php

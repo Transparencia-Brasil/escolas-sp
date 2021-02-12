@@ -151,10 +151,27 @@ escolas <- sp_2019 %>%
          bol_40 = ifelse(carga_horaria == 40, 1, 0)) %>%
   group_by(codigo_do_local_de_exercicio, mes) %>%
   mutate(media_hora = mean(valor_ajustado), soma_15 = sum(bol_15), soma_23 = sum(bol_23), soma_30 = sum(bol_30), soma_40 = sum(bol_40)) %>%
+  mutate(mediana_hora = median(valor_hora)) %>%
   ungroup() %>%
   group_by(codigo_do_local_de_exercicio, local_de_exercicio) %>%
-  summarise(media_hora_anual = mean(media_hora), media_15 = sum(soma_15), media_23 = sum(soma_23), media_30 = sum(soma_30), media_40 = sum(soma_40))
+  summarise(media_hora_anual = mean(media_hora), media_15 = mean(soma_15), media_23 = mean(soma_23), media_30 = mean(soma_30), media_40 = mean(soma_40))
 ```
+
+## III. Categoria profissional
+
+Por último, vamos gerar os dados com a proporção de cada categoria profissional
+
+```{r}
+cat <- sp_2019 %>%
+  filter(mes == "Janeiro") %>%
+  janitor::tabyl(codigo_do_local_de_exercicio, categoria_profissional)
+
+colnames(cat)[2:6] <- c("cat_lic", "cat_med", "cat_ped", "cat_efet", "cat_nao")
+
+escolas <- escolas %>%
+  left_join(cat, by = "codigo_do_local_de_exercicio")
+```
+
 
 Salvando:
 
