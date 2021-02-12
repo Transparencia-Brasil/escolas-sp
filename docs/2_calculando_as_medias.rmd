@@ -136,6 +136,10 @@ sp_2019 %>%
 Por fim, alguns valores excessivamente baixos também estão presentes, com professores recebendo menos de R$ 998 mensais, o salário mínimo de 2019. Pode ser que esse valor seja decorrente de descontos por conta de greves ou outros fatores. Para evitar distorções, todos os pagamentos abaixo desse valor será desconsiderado
 
 ```{r}
+# Para robustez, descomentar
+#sp_2019 <- sp_2019 %>%
+#  mutate(valor_ajustado = ifelse(total_pago < 998, 998/(carga_horaria*4), valor_hora))
+
 sp_2019 <- sp_2019 %>%
   filter(total_pago > 997)
 ```
@@ -152,11 +156,11 @@ escolas <- sp_2019 %>%
          bol_30 = ifelse(carga_horaria == 30, 1, 0),
          bol_40 = ifelse(carga_horaria == 40, 1, 0)) %>%
   group_by(codigo_do_local_de_exercicio, mes) %>%
-  mutate(media_hora = mean(valor_ajustado), soma_15 = sum(bol_15), soma_23 = sum(bol_23), soma_30 = sum(bol_30), soma_40 = sum(bol_40)) %>%
+  mutate(media_hora = mean(valor_ajustado), soma_15 = sum(bol_15), soma_23 = sum(bol_23), soma_30 = sum(bol_30), soma_40 = sum(bol_40), media_hora_real = mean(valor_hora)) %>%
   mutate(mediana_hora = median(valor_hora)) %>%
   ungroup() %>%
   group_by(codigo_do_local_de_exercicio, local_de_exercicio) %>%
-  summarise(mediana_hora_anual = median(mediana_hora), media_hora_anual = mean(media_hora), media_15 = mean(soma_15), media_23 = mean(soma_23), media_30 = mean(soma_30), media_40 = mean(soma_40))
+  summarise(mediana_hora_anual = median(mediana_hora), media_hora_anual = mean(media_hora), media_15 = mean(soma_15), media_23 = mean(soma_23), media_30 = mean(soma_30), media_40 = mean(soma_40), media_hora_real = mean(valor_hora))
 ```
 
 ## III. Categoria profissional
