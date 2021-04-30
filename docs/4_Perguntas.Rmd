@@ -19,6 +19,13 @@ library('dplyr')
 library('kableExtra')
 library('ggplot2')
 library('readr')
+
+trace(grDevices::png, quote({
+  if (missing(type) && missing(antialias)) {
+    type <- "cairo-png"
+    antialias <- "subpixel"
+  }
+}), print = FALSE)
 ```
 
 # Introdução
@@ -26,6 +33,7 @@ library('readr')
 Carregando a base:
 ```{r}
 load("../dados/sp_2019.RData")
+load("../dados/escolas_com_dados.RData")
 ```
 
 Relembrando a estrutura:
@@ -128,7 +136,72 @@ sp_2019 %>%
   geom_violin()
 ```
 
-5. Há “outliers” na periferia? Quais são?
+# 5. Há “outliers” na periferia? Quais são?
 
+Para identificar as escolas geograficamente periféricas, vamos calcular a distância euclidiana de cada escola até a Praça da Sé (centro geográfico de Sâo Paulo).
+```{r}
+escolas_dist <- escolas_com_cod %>%
+  mutate(dif_lat = as.numeric(latitude) + 23.550531400378656,
+         dif_long = as.numeric(longitude)  + 46.633829132143376,
+         dist_eucli = sqrt((dif_lat^2) + (dif_long^2)))
+  
+```
 
-6. Há distribuição diferente por etapa de ensino? Ex.: professores de CEI já têm garantida a jornada integral, ao contrário dos demais (e os da etapa final do EF têm mais dificuldade de alcançá-la).
+Agora vamos listar os outliers, tanto com base na média da hora quanto na mediana
+
+```{r}
+out_medias <- boxplot(escolas_dist$media_hora_anual)$out
+
+out_medianas <- boxplot(escolas_dist$mediana_hora_anual)$out
+```
+
+Outliers com base na mediana da hora cuja distância euclidiana do centro é maior que 0.07
+```{r}
+escolas_dist %>%
+  filter(dist_eucli > 0.07 & mediana_hora_anual %in% out_medianas)
+```
+
+Entre essas escolas, a 	EMEI MANOEL FIEL FILHO se destaca com o maior IPVS (3,6) em São Rafael.
+
+Outliers com base na mediana da hora cuja distância euclidiana do centro é maior que 0.07
+```{r}
+escolas_dist %>%
+  filter(dist_eucli > 0.07 & media_hora_anual %in% out_medias)
+```
+
+Para as escolas outliers na média da hora paga, se destcam aquelas localizadas em Jardim Angela, com 4 outliers nesse distrito.
+
+# 6. Há distribuição diferente por etapa de ensino? Ex.: professores de CEI já têm garantida a jornada integral, ao contrário dos demais (e os da etapa final do EF têm mais dificuldade de alcançá-la).
+
+```{r}
+escolas_com_class <- escolas_dist %>%
+  mutate(etapa = case_when(grepl(local_de_exercicio, "^EMEI") ~ "EMEI",
+         grepl("^CEI", local_de_exercicio) ~ "CEI",
+         grepl("^CEMEI", local_de_exercicio) ~ "CEMEI",
+         grepl("^CEU CEI", local_de_exercicio) ~ "CEU CEI",
+         grepl("^CEU EMEI", local_de_exercicio) ~ "CEU EMEI",
+         grepl("^CEU EMEF", local_de_exercicio) ~ "CEU EMEF",
+         grepl("^CIEJA", local_de_exercicio) ~ "CIEJA",
+         grepl("^EMEF", local_de_exercicio) ~ "EMEF",
+         grepl("^EMEI", local_de_exercicio) ~ "EMEI"))
+```
+
+Distribuição da média das horas anuais de acordo com a etapa de cada escola. Cada observação representação uma escola.
+```{r}
+escolas_com_class%>%
+  ggplot(aes(x=etapa, y=media_hora_anual, fill=as.factor(etapa))) + 
+  geom_violin() +
+  geom_boxplot(width = 0.3, alpha=0.2) +
+  coord_flip()
+```
+Distribuição da mediana das horas anuais de acordo com a etapa de cada escola. Cada observação representação uma escola.
+
+```{r}
+escolas_com_class%>%
+  ggplot(aes(x=etapa, y=mediana_hora_anual, fill=as.factor(etapa))) + 
+  geom_violin() +
+  geom_boxplot(width = 0.3, alpha=0.2) +
+  coord_flip()
+```
+
+É possível notar que os CIEJAS se destacam com valores mais altos, tanto na média quanto na mediana, enquanto os CEMEIS se destacam com os valores mais baixos. Comparando EMEF com EMEI, no entanto, não parece ter diferenças substanciais na média, apesar de EMEIS possuírem escolas com médias mais altas.
