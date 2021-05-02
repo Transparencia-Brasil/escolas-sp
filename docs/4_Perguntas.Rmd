@@ -1,0 +1,207 @@
+---
+title: "4. Perguntas"
+author: "Jonas Coelho"
+date: "27/04/2021"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library('dplyr')
+library('kableExtra')
+library('ggplot2')
+library('readr')
+
+trace(grDevices::png, quote({
+  if (missing(type) && missing(antialias)) {
+    type <- "cairo-png"
+    antialias <- "subpixel"
+  }
+}), print = FALSE)
+```
+
+# Introdução
+
+Carregando a base:
+```{r}
+load("../dados/sp_2019.RData")
+load("../dados/escolas_com_dados.RData")
+```
+
+Relembrando a estrutura:
+```{r}
+head(sp_2019)
+```
+
+
+# 1. Foram só professores concursados?
+Não temos um referencial específico para isso, vamos checar nas demais colunas
+```{r}
+sp_2019 %>%
+  distinct(tipo_categoria, categoria_profissional)
+```
+
+Os dados fornecidos só nos apontam a qualificação dos profissionais. Entretanto, como será visto a seguir, os profissionais listados estão associados à secretaria de educação, o que indica possivelmente que são concursados.
+
+# 2. O banco tem só salários ou a classificação na carreira?
+Como visto no ponto 1, não há classificação da carreira, apenas nível de habilitação do professor e o salário.
+
+# 3. Foram separados os vencimentos de profissionais com mais de um cargo?
+Vamos antes verificar se há casos assim. 
+
+```{r}
+duplicatas <- sp_2019 %>%
+  mutate(nome_cod = paste0(nome, codigo_do_local_de_exercicio, ano, mes)) %>%
+  group_by(nome_cod) %>%
+  filter(n() > 1) %>%
+  ungroup()
+```
+
+
+```{r}
+duplicatas %>%
+  summarise(nomes_distintos = n_distinct(nome), entradas_distintas = n_distinct(nome_cod))
+```
+Há 2.860 funcionários com dois (ou mais) pagamentos na mesma escola e no mesmo mês do mesmo ano. Para descobrir o que está acontecendo, podemos ter uma pista ao importar os dados obtidos do Portal de Transparência municipal de São Paulo ( http://transparencia.prefeitura.sp.gov.br/funcionalismo/ ). Entretanto, esse arquivo não informa quando foi gerado. Por isso vamos, vamos usar o portal de Dados Abertos para obter o csv referente a dezembro de 2019, o último mês analisado por nós. http://dados.prefeitura.sp.gov.br/dataset/remuneracao-servidores-prefeitura-de-sao-paulo
+
+```{r}
+dados_abertos <- read_delim("../dados/remuneracao12-2019atiliminar20200103.csv", 
+    ";", escape_double = FALSE, locale = locale(decimal_mark = ",", 
+        encoding = "ISO-8859-1"), trim_ws = TRUE) %>%
+  janitor::clean_names()
+```
+
+Agora vamos dar um merge
+
+```{r}
+merged <- duplicatas %>%
+     filter(ano == 2019 & mes == 'Dezembro') %>% # mesmo mês do arquivo baixado
+     left_join(dados_abertos, by = c('nome' = 'nome_completo'))
+```
+
+Vamos ver os cargos que aparecem agora
+
+```{r}
+merged %>%
+  distinct(cargo_base)
+```
+
+É possível notar que há cargos administrativos (Diretor de escola, Coordenardor pedagogico). Vamos ver a remuneração desses:
+
+```{r}
+merged %>%
+  filter(cargo_base == 'DIRETOR DE ESCOLA') %>%
+  head()
+```
+
+Só há 6 linhas, e é possível observar que os três que aparecem estão duplicados. Ou seja, não há um caso (em dezembro de 2019) onde o diretor tem uma remuneração como professor e outra como diretor. As duplicatas são referentes ao mesmo cargo nesse caso. Mas é interessante que a soma das duas remunerações do SIOPE extrapolam o valor de remuneração bruta apresentado nos dados abertos da prefeitura.
+
+Vamos ignorar a questão do diretor e explorar a base mais abertamente para ver o que descobrimos:
+
+```{r}
+merged %>%
+  head(30)
+```
+
+É possível notar que tem uma certa intercalação na coluna "jornada". No arquivo de dados abertos, essa coluna costuma mostrar as horas do servidor, só tendo o preenchimento diferenciado para os profissionais da educação. Como temos a carga horária pelo SIOPE, aparentemente não há distinção nas horas para o profissional ser JEI FORMACAO ou JB DOCENTE. Com isso, cabe investigar o que poderia explicar essa duplicata e a diferença entre as duas linhas.
+
+Ainda assim, é possível notar que há casos como o de "ADINA APARECIDA CAPATTO", que possui cargo_base diferenciado (PROFESSOR ENSINO FUNDAMENTAL II E MEDIO CAT 3 ; PROFESSOR ED INFANTIL E ENS FUNDAMENTAL CAT 3) no mesmo mês e local. Curiosamente, a coluna "Categoria profissional" também muda:
+
+```{r}
+merged %>%
+  filter(nome == 'ADINA APARECIDA CAPATTO')
+```
+
+Em resumo, a resposta para essa pergunta é não. Cada linha foi tratada de forma individualizada.
+
+# 4. A carga horária de 30hs (40 horas/aula) foi padrão? Ou se “extrapolaram” para 30hs também os casos de profissionais com jornadas distintas?
+Foram incluídos professores com carga horária de 15, 23, 30 e 40h semanais. A única exclusão feita referia-se a valores abaixo de um salário mínimo. O gráfico abaixo mostra como ficou a distribuição dos valores por hora.
+
+```{r}
+sp_2019 %>%
+  mutate(total_pago = gsub("\\.","", total_a_b_c)) %>%
+  mutate(total_pago = gsub(",","\\.", total_pago)) %>%
+  mutate(total_pago = as.numeric(total_pago)) %>%
+  mutate(valor_hora = total_pago/(carga_horaria*4)) %>%
+  mutate(valor_ajustado = ifelse(total_pago > 33000, 33000/(carga_horaria*4), valor_hora)) %>%
+  ggplot(aes(x=carga_horaria, y=valor_ajustado, fill=as.factor(carga_horaria))) + 
+  geom_violin()
+```
+
+# 5. Há “outliers” na periferia? Quais são?
+
+Para identificar as escolas geograficamente periféricas, vamos calcular a distância euclidiana de cada escola até a Praça da Sé (centro geográfico de Sâo Paulo).
+```{r}
+escolas_dist <- escolas_com_cod %>%
+  mutate(dif_lat = as.numeric(latitude) + 23.550531400378656,
+         dif_long = as.numeric(longitude)  + 46.633829132143376,
+         dist_eucli = sqrt((dif_lat^2) + (dif_long^2)))
+  
+```
+
+Agora vamos listar os outliers, tanto com base na média da hora quanto na mediana
+
+```{r}
+out_medias <- boxplot(escolas_dist$media_hora_anual)$out
+
+out_medianas <- boxplot(escolas_dist$mediana_hora_anual)$out
+```
+
+Outliers com base na mediana da hora cuja distância euclidiana do centro é maior que 0.07
+```{r}
+escolas_dist %>%
+  filter(dist_eucli > 0.07 & mediana_hora_anual %in% out_medianas)
+```
+
+Entre essas escolas, a 	EMEI MANOEL FIEL FILHO se destaca com o maior IPVS (3,6) em São Rafael.
+
+Outliers com base na mediana da hora cuja distância euclidiana do centro é maior que 0.07
+```{r}
+escolas_dist %>%
+  filter(dist_eucli > 0.07 & media_hora_anual %in% out_medias)
+```
+
+Para as escolas outliers na média da hora paga, se destcam aquelas localizadas em Jardim Angela, com 4 outliers nesse distrito.
+
+# 6. Há distribuição diferente por etapa de ensino? Ex.: professores de CEI já têm garantida a jornada integral, ao contrário dos demais (e os da etapa final do EF têm mais dificuldade de alcançá-la).
+
+```{r}
+escolas_com_class <- escolas_dist %>%
+  mutate(etapa = case_when(grepl(local_de_exercicio, "^EMEI") ~ "EMEI",
+         grepl("^CEI", local_de_exercicio) ~ "CEI",
+         grepl("^CEMEI", local_de_exercicio) ~ "CEMEI",
+         grepl("^CEU CEI", local_de_exercicio) ~ "CEU CEI",
+         grepl("^CEU EMEI", local_de_exercicio) ~ "CEU EMEI",
+         grepl("^CEU EMEF", local_de_exercicio) ~ "CEU EMEF",
+         grepl("^CIEJA", local_de_exercicio) ~ "CIEJA",
+         grepl("^EMEF", local_de_exercicio) ~ "EMEF",
+         grepl("^EMEI", local_de_exercicio) ~ "EMEI"))
+```
+
+Distribuição da média das horas anuais de acordo com a etapa de cada escola. Cada observação representação uma escola.
+```{r}
+escolas_com_class%>%
+  ggplot(aes(x=etapa, y=media_hora_anual, fill=as.factor(etapa))) + 
+  geom_violin() +
+  geom_boxplot(width = 0.3, alpha=0.2) +
+  coord_flip()
+```
+Distribuição da mediana das horas anuais de acordo com a etapa de cada escola. Cada observação representação uma escola.
+
+```{r}
+escolas_com_class%>%
+  ggplot(aes(x=etapa, y=mediana_hora_anual, fill=as.factor(etapa))) + 
+  geom_violin() +
+  geom_boxplot(width = 0.3, alpha=0.2) +
+  coord_flip()
+```
+
+É possível notar que os CIEJAS se destacam com valores mais altos, tanto na média quanto na mediana, enquanto os CEMEIS se destacam com os valores mais baixos. Comparando EMEF com EMEI, no entanto, não parece ter diferenças substanciais na média, apesar de EMEIS possuírem escolas com médias mais altas.
